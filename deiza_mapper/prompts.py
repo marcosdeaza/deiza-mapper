@@ -12,16 +12,22 @@ _ES = """**Entregables (bloques artifact):** cuando el usuario pida un archivo, 
 ```artifact
 {"name": "nombre.ext", "type": "pdf|docx|pptx|html|zip|code", "content": "..."}
 ```
-- PDF y DOCX: `content` es markdown. La primera linea es un comentario de tema: `<!-- theme: X -->` con X en {%(themes)s}. Opciones: `accent: #RRGGBB`, `cover: true` (portada a pagina completa con campo de color), `numbers: true` (numeros de pagina), `size: letter`, `orientation: landscape`, `kicker: "Informe anual"`, `author: "Quien firma"`, `date: "Septiembre 2026"` (los tres salen en la portada). Una imagen `![](URL)` justo debajo del subtitulo se convierte en la foto de portada.
-  Elige el tema por el tono: editorial (historia, cultura, instituciones), swiss (negocio, consultoria), ocean (ciencia, salud, tecnica), forest (naturaleza, sostenibilidad), sunset (marketing, eventos), noir/midnight (tecnologia, startups, lujo), minimal (apuntes, legal), paper (calido, personal), brutal (manifiesto, cartel).
+- PDF y DOCX: `content` es markdown. La primera linea es un comentario de tema: `<!-- theme: X -->` con X en {%(themes)s}.
+  Opciones: `accent: #RRGGBB`, `accent2: #RRGGBB` (personalizacion cromatica unica), `cover: true` (portada a pagina completa con campo de color), `numbers: true` (numeros de pagina), `size: letter`, `orientation: landscape`, `kicker: "Informe anual"`, `author: "Quien firma"`, `date: "Septiembre 2026"` (los tres salen en la portada). Una imagen `![](URL)` justo debajo del subtitulo se convierte en la foto de portada.
+  DIRECCION DE ARTE Y TONO (elige tema y acentos apropiados al proposito):
+  - Comercial / Ventas / Pitch: arriesga con contrastes visuales fuertes (`brutal`, `sunset` o `swiss`), acento energico (`accent: #E63946`, `#FF5A1F`, `#2563EB`), cifras destacadas, tablas comparativas y cajas de valor.
+  - Corporativo / Consultoria / Estrategia: `swiss` u `ocean`, paleta pulcra (azul marino `#0F2942`, verde petrolero `#0E7C86`), tablas estructuradas, KPIs limpios y sobriedad ejecutiva.
+  - Tecnologia / Startups / Lujo: `midnight` o `noir`, acentos selectos (oro `#E9C46A`, esmeralda `#10B981` o cian `#06B6D4`), tarjetas oscuras, lineas de tiempo y arquitectura de sistemas.
+  - Editorial / Cultura / Humanidades: `editorial` o `paper`, tipografia con serifa elegante, citas amplias (`>`), texto a dos columnas (`::: columns`).
+  - Formal / Legal / Financiero / Solemne (funebre, institucional): sobriedad absoluta con `minimal` o escala de grises neutros (`#334155`), tipografia limpia y cero colores estridentes.
   Estructura: `# Titulo` en la primera linea y una frase de subtitulo debajo; secciones `##` y `###`; tablas markdown para datos; citas `>`; listas; **negritas**. Vocabulario extra que se renderiza de verdad:
   - `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!IMPORTANT]` al inicio de una cita -> caja destacada con titulo.
   - Formulas LaTeX: `$inline$` y `$$display$$` (matrices con `\\begin{pmatrix}`, integrales, sumatorios, alineaciones). Se renderizan tal cual, tambien en Word.
   - Graficos: un bloque ```chart con un JSON de Chart.js `{"type": "bar|line|pie|doughnut|radar", "data": {"labels": [...], "datasets": [{"label": "...", "data": [...]}]}}` -> grafico real con la paleta del tema.
   - Diagramas: un bloque ```mermaid (flowchart, sequenceDiagram, gantt, pie...).
   - `[[PAGEBREAK]]` en su propia linea para saltar de pagina: solo antes de una parte principal, nunca antes de cada seccion (deja paginas medio vacias); `::: columns` ... `:::` para texto a dos columnas; `::: box` ... `:::` para un panel enmarcado.
-  - Fotos: `![pie de foto](URL)` con URLs reales (adjuntas o verificadas), nunca inventadas; dos o mas imagenes seguidas forman una galeria.
-  - Diseño totalmente a medida (poster, curriculum, menu, factura, invitacion, revista): en vez de markdown escribe en `content` un documento HTML completo (`<!doctype html>` con `<style>`, Google Fonts, `@page { size: A4; margin: ... }`, colores, columnas, tarjetas, `<img>`). Se imprime tal cual con un motor de navegador.
+  - Fotos: `![pie de foto](URL)` con URLs reales (adjuntas, verificadas o enlaces estables de Wikimedia/Wikipedia); el motor las descarga e incrusta automaticamente en el PDF con alta resolucion; dos o mas imagenes seguidas forman una galeria.
+  - Diseño totalmente a medida (poster, curriculum, menu, factura, invitacion, revista): en vez de markdown escribe en `content` un documento HTML completo (`<!doctype html>` con `<style>`, Google Fonts, `@page { size: A4; margin: ... }`, colores, columnas, tarjetas, `<img>`). Se imprime tal cual con un motor de navegador real.
 - PPTX: `content` es HTML de diapositivas: una `<section class="slide">` por diapositiva (1280x720). Ver las instrucciones de decks.
 - HTML: `content` es una pagina completa y responsive. ZIP: `content` es una lista JSON de ficheros `[{"name": "index.html", "content": "..."}, {"name": "style.css", ...}, {"name": "game.js", ...}]` con TODO el codigo real; index.html enlaza los demas con rutas relativas.
 - Nunca firmes ni menciones la herramienta dentro del entregable. Sin emojis."""
@@ -30,15 +36,20 @@ _EN = """**Deliverables (artifact blocks):** when the user asks for a file, writ
 ```artifact
 {"name": "file.ext", "type": "pdf|docx|pptx|html|zip|code", "content": "..."}
 ```
-- PDF and DOCX: `content` is markdown. Its first line is a theme comment: `<!-- theme: X -->` with X in {%(themes)s}. Options: `accent: #RRGGBB`, `cover: true` (full-page cover with a colour field), `numbers: true` (page numbers), `size: letter`, `orientation: landscape`, `kicker: "Annual report"`, `author: "Who signs"`, `date: "September 2026"` (all three print on the cover). An image `![](URL)` right under the subtitle becomes the cover picture.
-  Pick the theme by tone: editorial (history, culture, institutions), swiss (business, consulting), ocean (science, health, technical), forest (nature, sustainability), sunset (marketing, events), noir/midnight (tech, startups, luxury), minimal (notes, legal), paper (warm, personal), brutal (manifesto, poster).
+- PDF and DOCX: `content` is markdown. Its first line is a theme comment: `<!-- theme: X -->` with X in {%(themes)s}. Options: `accent: #RRGGBB`, `accent2: #RRGGBB`, `cover: true` (full-page cover with a colour field), `numbers: true` (page numbers), `size: letter`, `orientation: landscape`, `kicker: "Annual report"`, `author: "Who signs"`, `date: "September 2026"` (all three print on the cover). An image `![](URL)` right under the subtitle becomes the cover picture.
+  ART DIRECTION & TONE (pick theme and accents that match the purpose):
+  - Commercial / Sales / Pitch: bold high-contrast visuals (`brutal`, `sunset` or `swiss`), energetic accent (`accent: #E63946`, `#FF5A1F`, `#2563EB`), prominent stat cards and comparison tables.
+  - Corporate / Consulting / Strategy: `swiss` or `ocean`, clean palette (navy `#0F2942`, petroleum teal `#0E7C86`), structured tables and executive restraint.
+  - Tech / Startups / Luxury: `midnight` or `noir`, selective accents (gold `#E9C46A`, emerald `#10B981` or cyan `#06B6D4`), dark cards, timelines and system architecture.
+  - Editorial / Culture / Humanities: `editorial` or `paper`, elegant serif typography, wide quotes (`>`), two-column text (`::: columns`).
+  - Formal / Legal / Financial / Solemn (memorial, official): strict restraint with `minimal` or neutral grey scale (`#334155`), clean type and zero loud colours.
   Structure: `# Title` on the first line and a one-sentence subtitle below; `##`/`###` sections; markdown tables for data; `>` quotes; lists; **bold**. Extra vocabulary that really renders:
   - `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, `> [!IMPORTANT]` at the start of a quote -> a titled callout box.
   - LaTeX: `$inline$` and `$$display$$` (matrices with `\\begin{pmatrix}`, integrals, sums, aligned). Rendered as real equations, also in Word.
   - Charts: a ```chart block holding a Chart.js JSON `{"type": "bar|line|pie|doughnut|radar", "data": {"labels": [...], "datasets": [{"label": "...", "data": [...]}]}}` -> a real chart in the theme palette.
   - Diagrams: a ```mermaid block (flowchart, sequenceDiagram, gantt, pie...).
   - `[[PAGEBREAK]]` on its own line: only before a major part, never before every section (it leaves half-empty pages); `::: columns` ... `:::` for two-column text; `::: box` ... `:::` for a framed panel.
-  - Photos: `![caption](URL)` with real URLs only (attached or verified), never invented; two or more images in a row form a gallery.
+  - Photos: `![caption](URL)` with real URLs only (attached, verified or Wikimedia/Wikipedia); two or more images in a row form a gallery.
   - Fully custom design (poster, resume, menu, invoice, invitation, magazine): instead of markdown, put a complete HTML document in `content` (`<!doctype html>` with `<style>`, Google Fonts, `@page { size: A4; margin: ... }`, colours, columns, cards, `<img>`). It prints as-is through a real browser engine.
 - PPTX: `content` is slide HTML: one `<section class="slide">` per slide (1280x720). See the deck instructions.
 - HTML: `content` is a complete responsive page. ZIP: `content` is a JSON file list `[{"name": "index.html", "content": "..."}, {"name": "style.css", ...}, {"name": "game.js", ...}]` with ALL the real code; index.html links the others with relative paths.
@@ -46,7 +57,13 @@ _EN = """**Deliverables (artifact blocks):** when the user asks for a file, writ
 
 _DECK_ES = """**Presentacion en HTML (se convierte en PowerPoint editable):** devuelve SOLO el HTML de las diapositivas, sin explicaciones ni markdown.
 REGLAS DURAS (el sistema borra todo lo que no cumpla):
-- Primera linea obligatoria: `<!-- theme: X -->` con X en {editorial, noir, swiss, ocean, forest, minimal, sunset, midnight, paper, brutal}. Elige por el tono: editorial (historia, cultura), swiss (negocio, consultoria), ocean (ciencia, salud, tecnica), forest (naturaleza), sunset (marketing, eventos), noir/midnight (tecnologia, startups, lujo), minimal (academico, legal), paper (personal, calido), brutal (manifiesto, creativo).
+- Primera linea obligatoria: `<!-- theme: X -->` o `<!-- theme: X accent: #hex accent2: #hex -->` con X en {editorial, noir, swiss, ocean, forest, minimal, sunset, midnight, paper, brutal}.
+  DIRECCION DE ARTE Y RITMO (personaliza segun el objetivo):
+  - Comercial / Ventas / Pitch: arriesga con contraste (`brutal`, `sunset` o `swiss`), acento energico (`accent: #E63946`, `#2563EB`), ritmo agil. Rompe la monotonia: alterna `stat` con numeros gigantes, comparativas `two`, testimonios destacados `quote` y cuadriculas `cards`.
+  - Corporativo / Estrategia / Negocio: `swiss` u `ocean`, azul marino o teal, tablas limpias, KPIs estructurados y tarjetas rigurosas.
+  - Tecnologia / Startups / Lujo: `noir` o `midnight`, acento oro o cian, tarjetas oscuras y lineas de tiempo `timeline`.
+  - Humanidades / Cultura / Historia: `editorial` o `paper`, serifa clasica, citas amplias `quote` y fotos a sangre `full` o `split`.
+  - Formal / Legal / Financiero / Funebre o solemne: maxima sobriedad con `minimal`, escala de grises y neutros, sin estridencias.
 - NADA de `<style>`, ni atributos style, ni clases fuera de las listadas, ni emojis, ni iconos. La geometria, colores y tipografias los pone el sistema de diseño.
 - Cada diapositiva: `<section class="slide RECETA" data-notes="notas del ponente">` y dentro UN `<div class="pad">` con el contenido. Las fotos van como hijo directo de la section, ANTES del pad: `<img class="split-img" src="URL">` (foto a la derecha; `split-img left` para la izquierda) o `<img class="full-img" src="URL">` (foto a sangre con texto encima).
 - Entre %(min)d y %(max)d diapositivas. Secuencia: cover, luego bloques de [section + 2-4 diapositivas de contenido], y closing al final. Nunca dos recetas iguales seguidas; usa al menos 5 recetas distintas.

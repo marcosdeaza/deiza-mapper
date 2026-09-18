@@ -141,19 +141,36 @@ def fetch_image_bytes(url: str, timeout: float = 10.0) -> bytes:
             return b''
         thumb = wikimedia_thumb(url)
         # Commons refuses a thumbnail wider than the original: fall back to the original file
-        for candidate in ([thumb, url] if thumb != url else [url]):
+        candidates = [thumb, url] if thumb != url else [url]
+        headers = {
+            'User-Agent': _UA,
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
+        }
+        for candidate in candidates:
+            # Try requests if available for proper redirect and SSL handling
             try:
-                req = urllib.request.Request(candidate, headers={'User-Agent': _UA, 'Accept': 'image/*,*/*;q=0.8',
-                                                                 'Accept-Language': 'en,es;q=0.8'})
+                import requests as _req
+                with _req.get(candidate, headers=headers, timeout=timeout, stream=True, allow_redirects=True) as resp:
+                    if resp.status_code < 400:
+                        ctype = (resp.headers.get('Content-Type') or '').lower()
+                        data = resp.raw.read(_MAX_BYTES)
+                        if ('image' in ctype or is_image_bytes(data)) and len(data) > 0:
+                            return data
+            except Exception as e_req:
+                logger.debug(f'fetch_image_bytes (requests) failed for {candidate[:80]}: {e_req}')
+
+            # Fallback to urllib
+            try:
+                req = urllib.request.Request(candidate, headers=headers)
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
                     ctype = (resp.headers.get('Content-Type') or '').lower()
                     data = resp.read(_MAX_BYTES)
-            except Exception as e:
-                logger.debug(f'fetch_image_bytes failed for {candidate[:80]}: {e}')
+                    if ('image' in ctype or is_image_bytes(data)) and len(data) > 0:
+                        return data
+            except Exception as e_url:
+                logger.debug(f'fetch_image_bytes (urllib) failed for {candidate[:80]}: {e_url}')
                 continue
-            if 'image' not in ctype and not is_image_bytes(data):
-                continue
-            return data
         return b''
     except Exception as e:
         logger.debug(f'fetch_image_bytes failed for {str(url)[:80]}: {e}')
