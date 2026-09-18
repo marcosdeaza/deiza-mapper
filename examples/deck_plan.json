@@ -1,0 +1,18 @@
+{
+  "title": "Movilidad urbana 2030",
+  "subtitle": "Plan estratégico para una ciudad de 800.000 habitantes",
+  "theme": "editorial",
+  "slides": [
+    {"type": "cover", "image_query": "city tram street", "notes": "Bienvenida y contexto del plan."},
+    {"type": "section", "title": "Dónde estamos", "subtitle": "Diagnóstico con datos de 2025"},
+    {"type": "bullets", "title": "El coche sigue dominando el reparto modal", "subtitle": "Datos de la encuesta de movilidad 2025",
+     "bullets": ["El 54 % de los desplazamientos internos se hacen en coche privado", "La bicicleta crece un 18 % anual pero no llega al 6 % del total", "El tiempo medio de desplazamiento al trabajo es de 34 minutos", "Las emisiones del transporte son el 41 % del total municipal"],
+     "notes": "Insistir en que el crecimiento de la bici es la señal más positiva."},
+    {"type": "stat", "title": "Coste anual de la congestión para la ciudad", "stat": {"value": "212 M€", "label": "en horas perdidas, combustible y salud"}, "bullets": ["Equivale al 1,1 % del PIB local", "Cada conductor pierde 96 horas al año en atascos"]},
+    {"type": "two_col", "title": "Dos escenarios a 2030", "left_title": "Tendencial", "left": ["Reparto modal estable", "Cuatro nuevos aparcamientos", "Emisiones estables o al alza"], "right_title": "Plan 2030", "right": ["Red ciclista completa de 240 km", "Tranvía este-oeste operativo en 2029", "Zona de bajas emisiones ampliada"]},
+    {"type": "table", "title": "Inversión por eje", "subtitle": "Millones de euros, precios de 2026", "columns": ["Eje", "2027", "2028", "2029", "Total"], "rows": [["Tranvía", "48", "96", "74", "218"], ["Red ciclista", "12", "14", "9", "35"], ["Autobús eléctrico", "22", "22", "18", "62"], ["Espacio público", "9", "11", "13", "33"]]},
+    {"type": "quote", "quote": "Una ciudad avanzada no es aquella donde los pobres tienen coche, sino donde los ricos usan el transporte público.", "author": "Gustavo Petro"},
+    {"type": "image", "title": "Tranvía este-oeste", "bullets": ["18 km y 24 paradas", "Frecuencia de 5 minutos en hora punta", "Capacidad de 9.000 pasajeros por hora y sentido"], "image_query": "modern tram city"},
+    {"type": "closing", "title": "Empezamos en 2027", "subtitle": "Preguntas y siguientes pasos"}
+  ]
+}

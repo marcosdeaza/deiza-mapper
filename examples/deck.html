@@ -1,0 +1,111 @@
+<!-- theme: midnight -->
+<style>
+  .slide.hero { background: linear-gradient(135deg, #101827 0%, #1d2b48 60%, #37c5b0 160%); }
+  .slide.hero .pad { display: flex; flex-direction: column; justify-content: flex-end; }
+  .slide.hero h1 { font-size: 78px; color: #EEF2F7; max-width: 900px; }
+  .slide.hero .sub { color: #9AA7B8; font-size: 26px; margin-top: 22px; max-width: 760px; }
+  .slide .cards { margin-top: 42px; }
+  .slide .card.dark { background: #182236; }
+  .slide .card .n { font-family: var(--font-head); font-size: 54px; color: var(--accent); font-weight: 700; line-height: 1; }
+  .slide .card p { color: #C7D0DC; }
+  .slide.photo .caption { position: absolute; left: 77px; bottom: 80px; width: 720px; color: #fff; }
+  .slide.photo .caption h2 { color: #fff; font-size: 56px; text-shadow: 0 4px 24px rgba(0,0,0,.45); }
+  .slide.photo .caption p { color: #E6EBF2; font-size: 24px; margin-top: 16px; }
+  .slide .steps { margin-top: 48px; }
+  .slide .steps .step { border-top-color: var(--accent2); }
+  .slide .steps .step b { color: #EEF2F7; }
+  .slide .quotebox { margin: 40px 0 0; padding: 40px 48px; border-left: 8px solid var(--accent); background: rgba(55,197,176,.08); border-radius: 0 20px 20px 0; }
+  .slide .quotebox p { font-family: var(--font-head); font-size: 34px; line-height: 1.25; color: #EEF2F7; }
+  .slide .quotebox small { display: block; margin-top: 18px; font-size: 20px; color: #9AA7B8; }
+  .slide .kpi { display: flex; gap: 32px; margin-top: 40px; }
+  .slide .kpi div { flex: 1; background: #182236; border-radius: 18px; padding: 30px; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+  .slide .kpi .big { font-family: var(--font-head); font-size: 64px; color: var(--accent2); font-weight: 700; }
+  .slide .kpi .lbl { color: #9AA7B8; font-size: 19px; margin-top: 6px; }
+  .slide.close { background: var(--accent); }
+  .slide.close h1 { color: #101827; font-size: 84px; }
+  .slide.close p { color: #10182799; font-size: 26px; margin-top: 20px; }
+  .slide .tag { display: inline-block; background: var(--accent2); color: #101827; font-weight: 700; padding: 6px 14px; border-radius: 8px; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 26px; }
+</style>
+
+<section class="slide hero" data-notes="Abrir con el problema: latencia y coste.">
+  <div class="pad">
+    <span class="tag">Roadmap 2027</span>
+    <h1>Inferencia en el borde para retail</h1>
+    <p class="sub">Cómo llevamos la visión por computador de la nube a 1.400 tiendas sin subir el coste por transacción.</p>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="pad">
+    <p class="kicker">Situación de partida</p>
+    <h2>Tres cuellos de botella</h2>
+    <div class="grid-3 cards">
+      <div class="card dark"><div class="n">380 ms</div><h4>Latencia media</h4><p>Cada detección viaja al centro de datos y vuelve. En hora punta supera el segundo.</p></div>
+      <div class="card dark"><div class="n">0,9 €</div><h4>Coste por 1.000 imágenes</h4><p>La factura de GPU en la nube crece con cada tienda nueva, sin economías de escala.</p></div>
+      <div class="card dark"><div class="n">31 %</div><h4>Tiendas con cobertura débil</h4><p>Zonas rurales y centros comerciales con enlaces saturados pierden eventos.</p></div>
+    </div>
+    <div class="foot"><i></i><b>02</b></div>
+  </div>
+</section>
+
+<section class="slide photo">
+  <img class="full-img" src="https://picsum.photos/id/1031/1600/900" alt="">
+  <div class="overlay"></div>
+  <div class="caption">
+    <h2>Un servidor de 300 € en cada tienda</h2>
+    <p>Un mini PC con NPU integrada ejecuta el modelo cuantizado a 8 bits en menos de 40 ms.</p>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="pad">
+    <p class="kicker">Arquitectura</p>
+    <h2>Del centro de datos al pasillo</h2>
+    <div class="timeline steps">
+      <div class="step"><b>1. Destilar</b><p>El modelo grande enseña a uno cinco veces más pequeño con el mismo recall en estantería.</p></div>
+      <div class="step"><b>2. Cuantizar</b><p>INT8 con calibración por tienda: pérdida de precisión inferior al 0,4 %.</p></div>
+      <div class="step"><b>3. Desplegar</b><p>Actualizaciones firmadas por OTA; cada tienda vuelve a la versión anterior sola si falla.</p></div>
+      <div class="step"><b>4. Observar</b><p>Solo suben los eventos y un 1 % de muestras para reentrenar.</p></div>
+    </div>
+    <div class="foot"><i></i><b>04</b></div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="pad">
+    <p class="kicker">Resultados del piloto</p>
+    <h2>Doce tiendas, ocho semanas</h2>
+    <div class="kpi">
+      <div><div class="big">38 ms</div><div class="lbl">latencia p95, antes 380 ms</div></div>
+      <div><div class="big">-71 %</div><div class="lbl">coste por 1.000 imágenes</div></div>
+      <div><div class="big">99,6 %</div><div class="lbl">eventos entregados con enlace degradado</div></div>
+    </div>
+    <table style="margin-top:40px">
+      <thead><tr><th>Métrica</th><th>Nube</th><th>Borde</th><th>Variación</th></tr></thead>
+      <tbody>
+        <tr><td>Recall en estantería</td><td>94,1 %</td><td>93,8 %</td><td>-0,3 pp</td></tr>
+        <tr><td>Falsos positivos por hora</td><td>2,4</td><td>2,6</td><td>+0,2</td></tr>
+        <tr><td>Coste mensual por tienda</td><td>212 €</td><td>61 €</td><td>-151 €</td></tr>
+      </tbody>
+    </table>
+    <div class="foot"><i></i><b>05</b></div>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="pad">
+    <p class="kicker">Lo que dice el equipo de tienda</p>
+    <div class="quotebox">
+      <p>“Antes el aviso de rotura de stock llegaba cuando el cliente ya se había ido. Ahora lo vemos en el pasillo.”</p>
+      <small>Responsable de tienda, Valencia Centro</small>
+    </div>
+    <div class="foot"><i></i><b>06</b></div>
+  </div>
+</section>
+
+<section class="slide close">
+  <div class="pad" style="display:flex;flex-direction:column;justify-content:center">
+    <h1>1.400 tiendas antes de julio</h1>
+    <p>Presupuesto aprobado: 2,1 M€ · retorno en 14 meses · siguiente hito: 200 tiendas en marzo</p>
+  </div>
+</section>
