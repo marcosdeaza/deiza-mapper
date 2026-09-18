@@ -5,23 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "deiza-mapper"
 version = "1.0.0"
-description = "Map LLM output to real deliverables: designed PDFs, editable PowerPoint, Word documents and runnable web bundles, rendered HTML-first through Chromium."
+description = "HTML-first rendering engine for LLM outputs — PDF, PPTX, DOCX, web bundles."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Marcos de Aza" }]
+authors = [{ name = "Marcos de Aza", email = "87572166+marcosdeaza@users.noreply.github.com" }]
 keywords = ["llm", "pdf", "pptx", "docx", "html", "chromium", "playwright", "artifacts", "ai", "deiza"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Topic :: Text Processing :: Markup :: HTML",
   "Topic :: Office/Business",
+  "Topic :: Multimedia :: Graphics :: Presentation",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
   "playwright>=1.45",
@@ -43,6 +44,9 @@ dev = ["pytest>=8", "mathml2omml>=0.0.2", "Pygments>=2.15", "Flask>=3.0", "pymup
 [project.urls]
 Homepage = "https://github.com/marcosdeaza/deiza-mapper"
 Repository = "https://github.com/marcosdeaza/deiza-mapper"
+Documentation = "https://github.com/marcosdeaza/deiza-mapper#readme"
+Issues = "https://github.com/marcosdeaza/deiza-mapper/issues"
+Changelog = "https://github.com/marcosdeaza/deiza-mapper/releases"
 "Deiza" = "https://deiza.org"
 
 [project.scripts]

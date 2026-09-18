@@ -1,214 +1,337 @@
 # deiza-mapper
 
-HTML-first rendering engine for LLM outputs. Map model-generated markdown and HTML to real deliverables: designed PDFs, editable PowerPoint slides, Word documents with native equations, and runnable web bundles.
+[![PyPI version](https://badge.fury.io/py/deiza-mapper.svg)](https://pypi.org/project/deiza-mapper/)
+[![CI](https://github.com/marcosdeaza/deiza-mapper/actions/workflows/ci.yml/badge.svg)](https://github.com/marcosdeaza/deiza-mapper/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-[![PyPI version](https://badge.fury.io/py/deiza-mapper.svg)](https://badge.fury.io/py/deiza-mapper)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![deiza-mapper hero](docs/hero.png)
 
-![hero](docs/hero.png)
+HTML-first rendering engine for LLM outputs. Converts Markdown, semantic HTML, and structured plans into production-ready PDFs, native editable PowerPoint decks, Word documents with native equations, and self-contained web bundles.
 
-## Why HTML-first?
+## Capabilities
 
-Office automation libraries (python-pptx, python-docx) force you to reason in low-level primitives: shapes, paragraphs, runs. Navigation libraries donate you to the browser. Deiza-mapper meets in the middle:
+| Capability | PDF | PPTX | DOCX | Web Bundle |
+|:---|:---:|:---:|:---:|:---:|
+| Primary Input | Markdown / HTML | HTML slides / JSON plan | Markdown / HTML | JSON file list |
+| Text and Typography | CSS / Google Fonts | Native text boxes and runs | Native paragraphs and runs | HTML5 / CSS |
+| Layout System | Paged CSS (@page) | 1280x720 flex/grid slides | Flow document layout | Responsive web |
+| Theming (10 themes) | Yes | Yes | Yes | Yes |
+| Tables | Themed HTML tables | Native PowerPoint tables | Native Word tables | HTML tables |
+| Callouts (`> [!NOTE]`) | Highlighted panels | Card containers | Bordered callout boxes | Styled containers |
+| LaTeX Math Equations | KaTeX | Rasterized image | Native OMML equations | KaTeX |
+| Chart.js Charts | Rendered canvas | In-place rasterization | In-place rasterization | Interactive canvas |
+| Mermaid Diagrams | SVG vector | In-place rasterization | In-place rasterization | Interactive SVG |
+| Multi-column Sections | `::: columns` | `.grid-2`, `.grid-3`, `.grid-4` | `::: columns` | Flex / Grid |
+| Images | Remote / local inlined | Native picture shapes | Native picture shapes | Inlined / Data URI |
+| Additional Outputs | Landscape PDF twin | PNG slide previews | - | ZIP / Smoke test |
 
-1. The LLM writes **semantic HTML** (sections, headings, charts, tables)
-2. **Chromium** renders the layout with full CSS support
-3. The DOM tree is **extracted and mapped** to native Office elements
+## Output Preview
 
-This means the model can design slides by writing HTML+CSS, and the resulting `.pptx` contains real text boxes (not screenshots), native tables, gradients, shadows, and images. What cannot be expressed in Office (SVG, canvas, complex filters) is rasterized in-place.
-
-## Features
-
-- **PDFs** with charts (Chart.js), diagrams (Mermaid), equations (KaTeX), callouts, two-column layouts
-- **PowerPoint** from HTML slides: native text boxes, shapes, pictures, tables; PNG previews; landscape PDF twin
-- **Word documents** with native OMML equations, tables, callout panels, images
-- **Web bundles**: runnable single-file HTML app with inlined CSS/JS
-- **10 themes** (editorial, noir, swiss, ocean, forest, minimal, sunset, midnight, paper, brutal)
-- **Blueprint** for Flask and **CLI** for local rendering
+| PDF Document | PowerPoint Slides | Word Document (OMML Math) |
+|:---:|:---:|:---:|
+| ![PDF Preview](docs/pdf_page.png) | ![Slides Preview](docs/slides_grid.png) | ![DOCX Preview](docs/docx_page.png) |
 
 ## Installation
 
 ```bash
-pip install git+https://github.com/marcosdeaza/deiza-mapper
-python -m playwright install chromium
+pip install "deiza-mapper[all] @ git+https://github.com/marcosdeaza/deiza-mapper.git"
+python -m playwright install --with-deps chromium
 ```
 
-For equation support in Word:
+### Optional Dependency Sets
 
-```bash
-pip install deiza-mapper[math]
-```
+| Extra | Packages | Purpose |
+|:---|:---|:---|
+| `[math]` | `mathml2omml>=0.0.2` | Native OMML equation generation for DOCX |
+| `[highlight]` | `Pygments>=2.15` | Syntax highlighting in code blocks |
+| `[server]` | `Flask>=3.0` | HTTP rendering endpoints (Flask blueprint) |
+| `[all]` | `mathml2omml`, `Pygments`, `Flask` | Full feature set |
+| `[dev]` | `all` + `pytest>=8`, `pymupdf>=1.24` | Local testing and test suite execution |
 
 ## Quickstart
 
+### 1. Render PDF from Markdown
+
 ```python
-from deiza_mapper import render_pdf, render_docx, render_deck, prompts
+from deiza_mapper import render_pdf
 
-# PDF from markdown
-pdf_path = render_pdf("""
-<!-- theme: ocean numbers: true -->
-# Quarterly Report
+markdown_content = """<!-- theme: editorial numbers: true -->
+# Quarterly Performance Analysis
 
-## Executive Summary
+Executive review and financial trajectory for FY2026.
 
-Key metrics and trends for Q3 2026.
-
-$$\\sum_{i=1}^{n} x_i = \\bar{x}$$
+> [!NOTE]
+> Net recurring revenue increased by **18.4%** quarter-over-quarter.
 
 ```chart
-{"type": "bar", "data": {"labels": ["Q1", "Q2", "Q3"], "datasets": [{"label": "Revenue (M€)", "data": [12, 15, 18]}]}}
+{"type": "bar", "data": {"labels": ["Q1", "Q2", "Q3", "Q4"],
+ "datasets": [{"label": "Revenue ($M)", "data": [12.4, 14.8, 17.2, 21.0]}]}}
 ```
 
-> [!TIP]
-> This callout renders as a highlighted panel.
-""", filename="report.pdf")
+$$
+V(t) = V_0 \cdot e^{rt} + \sum_{k=1}^{n} \frac{C_k}{(1 + d)^k}
+$$
+"""
 
-# DOCX from markdown
-docx_path = render_docx("""
-<!-- theme: editorial -->
-# Proposal
-
-## Timeline
-
-```mermaid
-gantt
-    title Project Plan
-    a1 : 2026-10-01, 7d
-    a2 : after a1, 5d
+pdf_bytes = render_pdf(markdown_content, filename="report.pdf")
+with open("report.pdf", "wb") as f:
+    f.write(pdf_bytes)
 ```
-""", filename="proposal.docx")
 
-# Deck from HTML slides
-deck = render_deck("""
-<!-- theme: midnight -->
-<style>
-  .slide { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
-  .slide h1 { color: #e2e8f0; font-size: 64px; }
-</style>
+### 2. Render PowerPoint Deck from HTML Slides
 
-<section class="slide">
-  <h1>Strategy 2027</h1>
-  <p>Executive roadmap for growth.</p>
-</section>
+```python
+from deiza_mapper import render_deck
 
-<section class="slide">
-  <h2>Key Metrics</h2>
-  <div class="grid-3">
-    <div class="card"><div class="n">+38%</div><p>Growth YoY</p></div>
-    <div class="card"><div class="n">€12.4M</div><p>Revenue</p></div>
-    <div class="card"><div class="n">94%</div><p>Retention</p></div>
+slide_html = """<!-- theme: swiss -->
+<section class="slide" data-layout="hero">
+  <div class="pad">
+    <span class="pill">Launch</span>
+    <h1>Vector Engine v2</h1>
+    <p class="sub">Distributed semantic indexing at sub-millisecond latencies.</p>
   </div>
 </section>
-""", filename="strategy.pptx")
 
-print(f"PPTX: {deck.pptx}")
-print(f"Previews: {deck.previews}")
-print(f"PDF: {deck.pdf}")
+<section class="slide">
+  <div class="pad">
+    <p class="kicker">Architecture</p>
+    <h2>Core Specifications</h2>
+    <div class="grid-3">
+      <div class="card">
+        <h3>Storage</h3>
+        <p>Memory-mapped HNSW graph indices with 8-bit quantization.</p>
+      </div>
+      <div class="card">
+        <h3>Throughput</h3>
+        <p>145,000 queries per second across a 3-node cluster replica.</p>
+      </div>
+      <div class="card">
+        <h3>Recall</h3>
+        <p>99.4% recall@10 on 100M 1536-dimensional embedding vectors.</p>
+      </div>
+    </div>
+    <div class="foot"><i></i><b>02</b></div>
+  </div>
+</section>
+
+<section class="slide bg-accent">
+  <div class="pad" style="display: flex; flex-direction: column; justify-content: center;">
+    <h1>Available Today</h1>
+    <p style="font-size: 26px; margin-top: 16px; opacity: 0.9;">Documentation at api.example.com</p>
+  </div>
+</section>
+"""
+
+result = render_deck(slide_html, pdf=True, previews=True)
+
+with open("presentation.pptx", "wb") as f:
+    f.write(result.pptx)
+
+# Optional landscape PDF twin
+if result.pdf:
+    with open("presentation.pdf", "wb") as f:
+        f.write(result.pdf)
+
+# PNG preview of each slide
+for idx, png_bytes in enumerate(result.previews, start=1):
+    with open(f"slide_{idx:02d}.png", "wb") as f:
+        f.write(png_bytes)
 ```
 
-## Protocol
+### 3. Render DOCX with Native OMML Math
 
-Deiza-mapper defines a structured format for LLM outputs that maps directly to rendered artifacts. Include `prompts.protocol('en')` or `prompts.protocol('es')` in your system prompt.
+```python
+from deiza_mapper import render_docx
+
+markdown_doc = """<!-- theme: paper -->
+# Technical Specification
+
+System integration standards and compliance criteria for partner platforms.
+
+> [!TIP]
+> Use mutual TLS authentication on port 8443 for all inter-service communication.
+
+| Protocol | Version | Transport | Encryption |
+|:---|:---|:---|:---|
+| gRPC | 1.62 | HTTP/2 | TLS 1.3 |
+| REST | 2.1 | HTTP/1.1 | TLS 1.3 |
+
+Authentication token lifetime: $T_{\\text{session}} = \\min(t_{\\text{expiry}}, 3600)$.
+"""
+
+docx_bytes = render_docx(markdown_doc)
+with open("specification.docx", "wb") as f:
+    f.write(docx_bytes)
+```
+
+## Built-in Themes
+
+Themes configure palette tokens (`bg`, `ink`, `muted`, `accent`, `accent2`, `surface`, `line`) and font pairings across all output formats.
+
+| Theme | Background | Primary Ink | Accent | Heading Font | Recommended Use Case |
+|:---|:---|:---|:---|:---|:---|
+| `editorial` | `#F7F3EC` | `#1B1B1F` | `#B5432A` | Playfair Display / Georgia | Long-form reports, research papers, culture |
+| `noir` | `#0F0F12` | `#F3F1EC` | `#E9C46A` | Space Grotesk / Arial Black | Technical manifests, developer tools, dark UI |
+| `swiss` | `#FFFFFF` | `#111111` | `#E63312` | Archivo / Arial Black | Corporate presentations, consulting, business plans |
+| `ocean` | `#F4F8FB` | `#0B1F3A` | `#0E7C86` | Manrope / Calibri | Science, medical, financial data, analytics |
+| `forest` | `#F3F5EF` | `#1F2E24` | `#B8860B` | Fraunces / Georgia | Sustainability, climate analysis, agriculture |
+| `minimal` | `#FFFFFF` | `#1A1A1A` | `#1A1A1A` | Inter Tight / Calibri | Legal documents, technical specs, concise memos |
+| `sunset` | `#FFF8F0` | `#2B1D14` | `#E0562A` | DM Serif Display / Georgia | Marketing campaigns, product launches, events |
+| `midnight` | `#101827` | `#EEF2F7` | `#37C5B0` | Sora / Calibri | Cloud infrastructure, cybersecurity, executive decks |
+| `paper` | `#FBF7EF` | `#2A2420` | `#8D2F36` | Playfair Display / Georgia | Essays, monographs, briefing memos |
+| `brutal` | `#FFFFFF` | `#000000` | `#FF3B00` | Archivo Black / Impact | Product manifestos, keynote posters, bold launches |
+
+Theme directives can be set on the first line of Markdown or HTML content:
+
+```markdown
+<!-- theme: ocean accent: #0E7C86 cover: true numbers: true size: letter orientation: landscape -->
+```
+
+## Markdown Vocabulary
+
+| Syntax | Description | Supported Targets |
+|:---|:---|:---|
+| `<!-- theme: X -->` | Theme selection and document options (`cover`, `numbers`, `size`, `orientation`) | PDF, PPTX, DOCX |
+| `> [!NOTE]` / `> [!TIP]` / `> [!WARNING]` / `> [!IMPORTANT]` | Styled callout panel with titled banner | PDF, PPTX, DOCX |
+| `$inline$` and `$$display$$` | LaTeX mathematical equations (native OMML in DOCX) | PDF, PPTX, DOCX, Bundle |
+| ` ```chart ` | Chart.js configuration JSON (`bar`, `line`, `pie`, `doughnut`, `radar`) | PDF, PPTX, DOCX, Bundle |
+| ` ```mermaid ` | Mermaid diagram specification (`flowchart`, `sequenceDiagram`, `gantt`, etc.) | PDF, PPTX, DOCX, Bundle |
+| `::: columns` ... `:::` | Multi-column text flow | PDF, DOCX |
+| `::: box` ... `:::` | Framed content container | PDF, DOCX |
+| `[[PAGEBREAK]]` | Explicit page break insertion | PDF, DOCX |
+| `![caption](URL)` | Remote or local image embedding (adjacent images form a gallery) | PDF, PPTX, DOCX, Bundle |
+
+## API Reference
+
+### `render_pdf`
+
+```python
+def render_pdf(
+    content: str,
+    filename: str = "documento.pdf",
+    language: str = "es"
+) -> bytes:
+```
+
+Renders Markdown or complete HTML (`<!doctype html>`) into PDF bytes using Chromium. Full-page background fills and margins are preserved via `pypdf`.
+
+### `render_docx`
+
+```python
+def render_docx(
+    content: str,
+    language: str = "es"
+) -> bytes:
+```
+
+Parses Markdown and constructs a `.docx` file using `python-docx`. Converts LaTeX equations to native Office OpenXML Math (`OMML`) via `mathml2omml`.
+
+### `render_deck`
+
+```python
+def render_deck(
+    source: str | dict,
+    images: dict | None = None,
+    pdf: bool = False,
+    previews: bool = True,
+    **kw
+) -> DeckResult:
+```
+
+Accepts raw HTML slide sections (`<section class="slide">`) or a structured JSON plan dict. Computes layouts in Chromium and maps elements to native PowerPoint shapes, text boxes, and tables.
+
+#### `DeckResult`
+
+```python
+@dataclass
+class DeckResult:
+    html: str                 # Complete generated HTML
+    pptx: bytes               # Binary .pptx presentation
+    previews: list[bytes]     # PNG screenshot per slide (1280x720)
+    pdf: bytes | None         # Optional landscape PDF twin
+    slides: int               # Slide count
+    titles: list[str]         # Extracted titles per slide
+    warnings: list[str]       # Layout warnings or rasterization notes
+```
+
+### `prompts.protocol`
 
 ```python
 from deiza_mapper import prompts
 
-system_instruction = prompts.protocol('en') + """
-Write the report in the user's language.
-"""
+prompt_fragment = prompts.protocol(language="en")  # or "es"
 ```
 
-### Markdown vocabulary
+Generates a system-prompt fragment instructing an LLM how to format output artifacts (` ```artifact ` blocks, themes, metadata, equations, charts).
 
-| Element | Syntax | Notes |
-|---------|--------|-------|
-| Theme | `<!-- theme: ocean numbers: true size: letter orientation: landscape -->` | First line |
-| Cover | `<!-- cover: true -->` | Title page with background |
-| Callouts | `> [!NOTE]\n> Content` | NOTE, TIP, WARNING, IMPORTANT |
-| Equations | `$inline$` and `$$display$$` | LaTeX, native in DOCX |
-| Charts | ` ```chart\n{JSON}\n``` ` | Chart.js config |
-| Diagrams | ` ```mermaid\n...\n``` ` | Flowcharts, sequences, Gantt |
-| Columns | `::: columns\n...\n:::` | Two-column layout |
-| Panels | `::: box\n...\n:::` | Framed box |
-| Page break | `[[PAGEBREAK]]` | Manual split |
+### `prompts.deck_instructions`
 
-### Deck vocabulary
+```python
+deck_prompt = prompts.deck_instructions(
+    language="en",
+    theme="midnight",
+    image_urls=["https://example.com/img1.jpg"],
+    min_slides=8,
+    max_slides=12
+)
+```
 
-Slides are HTML `<section class="slide">` elements with 1280x720 layout. Each deck starts with the theme comment and optional `<style>` block.
+Generates system-prompt rules for emitting `<section class="slide">` HTML slides with layout guidelines and CSS utility classes.
 
-| Concept | Implementation |
-|---------|----------------|
-| Slide | `<section class="slide">...</section>` |
-| Classes | `.pad` (content wrapper), `.kicker` (label), `.grid-3` (3-column), `.card` (card) |
-| Backgrounds | CSS gradients, images, colors |
-| Text | `h1`, `h2`, `h3`, `p`, `.sub` |
-| Images | `<img src="...">` (inlined server-side) |
-| Native (PPTX) | Text boxes runs, shapes gradients, images, tables |
-| Rasterized | SVG, canvas, KaTeX, complex filters |
+## Command-Line Interface
 
-## Themes
+The package exposes the `deiza-map` executable:
 
-10 built-in themes with distinct palettes and typography:
+```bash
+# Render markdown to PDF
+deiza-map render report.md --to pdf --output report.pdf
 
-| Theme | Palette | Use case |
-|-------|---------|----------|
-| editorial | warm serif, cream | Long-form articles |
-| noir | dark mode, high contrast | Technical manifests |
-| swiss | sans-serif, grid | Modern presentations |
-| ocean | light blue, teal accents | Business reports |
-| forest | green, earth tones | Environmental docs |
-| minimal | grayscale | Clean, minimal |
-| sunset | warm oranges, pinks | Creative decks |
-| midnight | dark blue, teal | Strategy decks |
-| paper | warm, personal | Essays, one-pagers |
-| brutal | bold, poster-style | Manifestos |
+# Render markdown to DOCX
+deiza-map render report.md --to docx --output report.docx
+
+# Render HTML slides to PPTX with previews and landscape PDF
+deiza-map render deck.html --to pptx --pdf --previews ./slide_previews/
+
+# Render structured JSON plan to PPTX
+deiza-map render plan.json --to pptx --output presentation.pptx
+
+# Validate, package and smoke-test web bundle
+deiza-map bundle project.json --zip app.zip --html app.html --run --screenshot test.png
+
+# Extract artifact blocks from LLM raw output text
+deiza-map extract model_response.txt
+```
 
 ## Flask Blueprint
 
-Mount the rendering endpoints in your Flask app:
+Mount rendering endpoints directly inside any Flask application:
 
 ```python
 from flask import Flask
-from deiza_mapper import mapper_blueprint
+from deiza_mapper.server import mapper_blueprint
 
 app = Flask(__name__)
-app.register_blueprint(mapper_blueprint(), url_prefix='/api/mapper')
-
-# Endpoints:
-# POST /api/mapper/pdf   -> {"content": "...", "filename": "x.pdf"}
-# POST /api/mapper/docx  -> {"content": "...", "filename": "x.docx"}
-# POST /api/mapper/pptx  -> {"content": "...", "filename": "x.pptx"}
-# POST /api/mapper/zip   -> {"files": [...], "filename": "x.zip"}
+app.register_blueprint(mapper_blueprint(), url_prefix="/api/mapper")
 ```
 
-## CLI
+### Endpoints
 
-```bash
-deiza-map render input.md --theme ocean --output report.pdf
-deiza-map render deck.html --output slides.pptx
-deiza-map bundle app.json --output bundle.zip --run
-```
+| Method | Path | Request Body | Response |
+|:---|:---|:---|:---|
+| `GET` | `/api/mapper/themes` | None | JSON map of all 10 theme tokens |
+| `POST` | `/api/mapper/pdf` | `{"content": "...", "filename": "...", "language": "es"}` | `application/pdf` |
+| `POST` | `/api/mapper/docx` | `{"content": "...", "filename": "...", "language": "es"}` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| `POST` | `/api/mapper/pptx` | `{"content": "...", "pdf": true, "previews": true, "binary": false}` | JSON `{pptx_b64, pdf_b64, previews_b64, slides, titles}` (or `.pptx` binary if `binary: true`) |
+| `POST` | `/api/mapper/zip` | `{"files": [{"name": "index.html", "content": "..."}], "filename": "app.zip"}` | `application/zip` |
+| `POST` | `/api/mapper/bundle/run` | `{"files": [...], "screenshot": true}` | JSON `{ok, errors, console, title, png_b64, issues}` |
+| `POST` | `/api/mapper/artifacts` | `{"text": "...raw LLM output..."}` | JSON `{artifacts: [...], prose: "..."}` |
 
-## How it works
+## Known Limitations
 
-1. **Parse**: Markdown → HTML with extended syntax (callouts, charts, mermaid, math)
-2. **Theme**: Apply theme colors, fonts, layout to HTML
-3. **Render**: Chromium headless generates pixel-perfect output
-4. **Extract**: JS extractor parses DOM into structured representation
-5. **Build**: python-pptx / python-docx constructs native Office file
-6. **Rasterize**: Elements that can't be expressed natively become PNG
-
-## Limitations
-
-- **Network**: Chart.js, Mermaid, KaTeX load from jsdelivr CDN; without network they won't render (could vendorize)
-- **Nested lists**: In PPTX, indentation levels >1 may need manual adjustment
-- **Backgrounds**: DOCX doesn't export CSS background images or gradients
-- **Performance**: PDF ~2s, DOCX ~2s, deck 7-9 slides ~4s (Mac); VPS ~1.5-2x slower
-- **Fonts**: Office-safe fonts used by default (`keep_web_fonts=False`)
-
-## Built for Deiza
-
-Deiza-mapper is the rendering engine behind [Deiza](https://deiza.org), a multi-agent AI assistant for professional document generation.
+- **External CDN Dependency**: Chart.js, Mermaid, and KaTeX load from jsdelivr CDN during rendering; an active internet connection is required unless assets are self-hosted.
+- **PowerPoint Nested Lists**: Indented list items beyond depth level 1 in HTML slides are flattened to standard bullet runs by `python-pptx`.
+- **Word Document Backgrounds**: Full-bleed background colors and CSS gradients are not supported in `.docx` export due to Word document format constraints.
+- **Office Font Rendering**: Office formats fallback to standard system typography (e.g., Arial, Georgia, Calibri, Consolas) when specific Google Fonts are not installed locally on the opening machine.
 
 ## License
 
