@@ -102,6 +102,105 @@ def normalize_artifact(art: dict) -> dict:
     return {'name': name, 'type': typ, 'content': content, 'ext': ext}
 
 
+def _scan_object_end(text: str, i: int):
+    """Index just past the `}` that closes the JSON object opening at `i`, or -1 when the text ends
+    first. String-aware: braces, fences and newlines inside string literals do not count."""
+    depth = 0
+    in_str = False
+    esc = False
+    j = i
+    n = len(text)
+    while j < n:
+        ch = text[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == '"':
+                in_str = False
+        else:
+            if ch == '"':
+                in_str = True
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return j + 1
+        j += 1
+    return -1
+
+
+def _parse_spec(spec: str):
+    try:
+        return json.loads(spec), True
+    except Exception:
+        pass
+    try:
+        return json.loads(fix_json_control_chars(spec)), True
+    except Exception:
+        pass
+    return _tolerant(spec), False
+
+
+def find_block(text: str, fence_pos: int):
+    """Locate the ```artifact block that opens at `fence_pos`.
+
+    Returns (spec, block_end, partial): `spec` is the JSON text of the block, `block_end` the index
+    just past its closing fence (or len(text) when the stream was cut), `partial` True when no
+    closing fence was found.
+
+    The content of an artifact is markdown or code and routinely carries its own fenced blocks
+    (```chart, ```mermaid, ```python...), so the closing fence is NOT the first ``` after the
+    opener. The JSON object is scanned with string awareness to find where it ends; when the
+    object does not parse (unescaped quotes), the last line-start fence in the text is used
+    instead, and whichever candidate yields the longest usable artifact wins."""
+    body_start = fence_pos + len(FENCE)
+    n = len(text)
+    candidates = []            # (spec, block_end, partial)
+    brace = text.find('{', body_start)
+    if brace >= 0 and not text[body_start:brace].strip():
+        obj_end = _scan_object_end(text, brace)
+        if obj_end > 0:
+            close = text.find('```', obj_end)
+            if close >= 0 and not text[obj_end:close].strip():
+                candidates.append((text[brace:obj_end], close + 3, False))
+            else:
+                candidates.append((text[brace:obj_end], obj_end, False))
+    # every line-start fence after the opener is a possible close; the last one is the usual case
+    line_fences = [m.start() for m in re.finditer(r'(?m)^[ \t]*```[ \t]*$', text[body_start:])]
+    if line_fences:
+        last = body_start + line_fences[-1]
+        candidates.append((text[body_start:last].strip(), text.find('```', last) + 3, False))
+        first = body_start + line_fences[0]
+        if first != last:
+            candidates.append((text[body_start:first].strip(), text.find('```', first) + 3, False))
+    candidates.append((text[body_start:].strip(), n, True))   # stream cut before the closing fence
+
+    scored = []
+    for spec, end, partial in candidates:
+        art, strict = _parse_spec(spec)
+        art = normalize_artifact(art)
+        if not art:
+            continue
+        if strict:
+            return spec, end, partial
+        scored.append((len(art.get('content') or ''), spec, end, partial))
+    if not scored:
+        return text[body_start:].strip(), n, True
+    tail_len = max(size for size, _, _, partial in scored if partial) if any(p for _, _, _, p in scored) else 0
+    closed = [c for c in scored if not c[3]]
+    if closed:
+        size, spec, end, partial = max(closed, key=lambda c: c[0])
+        # a closed block that holds (almost) everything the tail holds is the real block; a much
+        # shorter one means the fence we found belongs to something else and the stream was cut
+        if size >= tail_len * 0.9:
+            return spec, end, partial
+    size, spec, end, partial = max(scored, key=lambda c: c[0])
+    return spec, end, partial
+
+
 def extract_artifacts(text: str) -> list:
     """Every ```artifact block in `text`, parsed (tolerantly). Unterminated blocks are
     returned with 'partial': True so a streaming UI can show progress."""
@@ -113,25 +212,35 @@ def extract_artifacts(text: str) -> list:
         start = text.find(FENCE, pos)
         if start < 0:
             break
-        body_start = start + len(FENCE)
-        end = text.find('```', body_start)
-        partial = end < 0
-        body = text[body_start:] if partial else text[body_start:end]
-        pos = len(text) if partial else end + 3
-        spec = body.strip()
-        art = None
-        try:
-            art = json.loads(spec)
-        except Exception:
-            try:
-                art = json.loads(fix_json_control_chars(spec))
-            except Exception:
-                art = _tolerant(spec)
+        spec, end, partial = find_block(text, start)
+        pos = max(end, start + len(FENCE))
+        art, _ = _parse_spec(spec)
         art = normalize_artifact(art)
         if art:
             art['partial'] = partial
             out.append(art)
+        if partial:
+            break
     return out
+
+
+def first_artifact(text: str):
+    """The first ```artifact block as the dict the model wrote (every key kept when the JSON parses;
+    name/type/content recovered tolerantly otherwise), or None."""
+    if not text or FENCE not in text:
+        return None
+    start = text.find(FENCE)
+    spec, _, partial = find_block(text, start)
+    art, strict = _parse_spec(spec)
+    if strict and isinstance(art, dict) and art.get('name'):
+        if isinstance(art.get('content'), (list, dict)):
+            art['content'] = json.dumps(art['content'], ensure_ascii=False)
+        return art
+    art = normalize_artifact(art)
+    if not art:
+        return None
+    art.pop('ext', None)
+    return art
 
 
 def strip_artifact_blocks(text: str) -> str:
@@ -146,10 +255,10 @@ def strip_artifact_blocks(text: str) -> str:
             out.append(text[pos:])
             break
         out.append(text[pos:start])
-        end = text.find('```', start + len(FENCE))
-        if end < 0:
+        spec, end, partial = find_block(text, start)
+        if partial:
             break
-        pos = end + 3
+        pos = end
     return re.sub(r'\n{3,}', '\n\n', ''.join(out)).strip()
 
 

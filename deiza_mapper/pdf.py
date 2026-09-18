@@ -80,6 +80,55 @@ def _footer_template(muted: str) -> str:
             '<span class="totalPages"></span></div>')
 
 
+_PAGE_MM = {'a4': (210, 297), 'letter': (215.9, 279.4), 'legal': (215.9, 355.6), 'a5': (148, 210), 'a3': (297, 420)}
+_PX_PER_MM = 96 / 25.4
+DEFAULT_MARGIN = {'top': '18mm', 'right': '16mm', 'bottom': '18mm', 'left': '16mm'}
+
+
+def _mm(value: str) -> float:
+    m = re.match(r'\s*([\d.]+)\s*(mm|cm|in|px|pt)?', str(value or ''))
+    if not m:
+        return 0.0
+    n, unit = float(m.group(1)), (m.group(2) or 'px')
+    return n * {'mm': 1, 'cm': 10, 'in': 25.4, 'px': 25.4 / 96, 'pt': 25.4 / 72}[unit]
+
+
+def print_viewport(html: str, size: str = 'A4', landscape: bool = False, margin: dict = None) -> tuple:
+    """(width_px, height_px) of the printable area, so the screen layout Chromium builds before
+    printing has the same width as the printed page. Responsive canvases (Chart.js) size themselves
+    from the screen layout; laid out at 1240px they were clipped on a 672px A4 column."""
+    w_mm, h_mm = _PAGE_MM.get((size or 'a4').lower(), _PAGE_MM['a4'])
+    mg = dict(DEFAULT_MARGIN, **(margin or {}))
+    m = re.search(r'@page\s*(?::first\s*)?\{([^}]*)\}', html or '')
+    if m:
+        rule = m.group(1)
+        sm = re.search(r'size\s*:\s*([^;]+)', rule)
+        if sm:
+            parts = sm.group(1).split()
+            named = next((p for p in parts if p.lower() in _PAGE_MM), None)
+            if named:
+                w_mm, h_mm = _PAGE_MM[named.lower()]
+            elif len(parts) >= 2 and re.match(r'[\d.]', parts[0]):
+                w_mm, h_mm = _mm(parts[0]), _mm(parts[1])
+            if 'landscape' in parts:
+                landscape = True
+        mm_rule = re.search(r'margin\s*:\s*([^;]+)', rule)
+        if mm_rule:
+            vals = mm_rule.group(1).split()
+            if len(vals) == 1:
+                vals = vals * 4
+            elif len(vals) == 2:
+                vals = [vals[0], vals[1], vals[0], vals[1]]
+            elif len(vals) == 3:
+                vals = [vals[0], vals[1], vals[2], vals[1]]
+            mg = {'top': vals[0], 'right': vals[1], 'bottom': vals[2], 'left': vals[3]}
+    if landscape:
+        w_mm, h_mm = h_mm, w_mm
+    width = (w_mm - _mm(mg['left']) - _mm(mg['right'])) * _PX_PER_MM
+    height = (h_mm - _mm(mg['top']) - _mm(mg['bottom'])) * _PX_PER_MM
+    return max(320, int(round(width))), max(320, int(round(height)))
+
+
 def html_to_pdf(html: str, landscape: bool = False, timeout_ms: int = 45000, page_bg: str = None,
                 page_numbers: bool = False, muted: str = '#8a8a8a', size: str = 'A4', margin: dict = None,
                 scale: float = 1.0, inline: bool = True) -> bytes:
@@ -87,12 +136,13 @@ def html_to_pdf(html: str, landscape: bool = False, timeout_ms: int = 45000, pag
     if inline:
         html = inline_images(html)
     has_page_rule = '@page' in html
-    with page_session(1240, 1754, timeout_ms=timeout_ms) as page:
+    vw, vh = print_viewport(html, size=size, landscape=landscape, margin=margin)
+    with page_session(vw, vh, timeout_ms=timeout_ms) as page:
         load_html(page, html, timeout_ms=timeout_ms)
         page.emulate_media(media='print')
         kwargs = dict(print_background=True, prefer_css_page_size=has_page_rule, landscape=landscape, scale=scale)
         if not has_page_rule:
-            kwargs.update(format=size, margin=margin or {'top': '18mm', 'right': '16mm', 'bottom': '18mm', 'left': '16mm'})
+            kwargs.update(format=size, margin=margin or DEFAULT_MARGIN)
         if page_numbers:
             kwargs.update(display_header_footer=True, header_template='<span></span>',
                           footer_template=_footer_template(muted))
@@ -120,7 +170,8 @@ def render_pdf(content: str, filename: str = 'documento.pdf', language: str = 'e
     # body: Chromium shrinks a margin-less first page when header/footer templates are on.
     cover_html = inline_images(cover_html)
     body_html = inline_images(body_html)
-    with page_session(1240, 1754) as page:
+    vw, vh = print_viewport(body_html, size=opts['size'], landscape=opts['landscape'])
+    with page_session(vw, vh) as page:
         load_html(page, cover_html)
         page.emulate_media(media='print')
         cover_pdf = page.pdf(print_background=True, prefer_css_page_size=True)

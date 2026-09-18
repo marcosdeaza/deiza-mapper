@@ -151,3 +151,31 @@ def test_document_cover_picture():
     assert 'cover-kicker">Annual report<' in html and 'Strategy office' in html and 'September 2026' in html
     assert html.count('example.com/cover.jpg') == 1               # pulled out of the body, only on the cover
 
+
+def test_artifact_block_with_inner_fences():
+    from deiza_mapper.artifacts import extract_artifacts, first_artifact, strip_artifact_blocks
+    md = ('<!-- theme: noir -->\n# T\n\n## Cifras\n\n```chart\n{"type": "bar", "data": {"labels": ["A"], '
+          '"datasets": [{"label": "x", "data": [1]}]}}\n```\n\n```mermaid\ngantt\n  title F\n```\n\nFinal.')
+    spec = json.dumps({'name': 'ww2.pdf', 'type': 'pdf', 'content': md}, ensure_ascii=False)
+    valid = 'Aqui tienes.\n\n```artifact\n' + spec + '\n```\n\nSaludos.'
+    raw_newlines = 'Aqui.\n\n```artifact\n{"name": "ww2.pdf", "type": "pdf", "content": "' + md.replace('"', '\\"') + '"}\n```\nFin.'
+    unescaped = 'Toma.\n\n```artifact\n{"name": "ww2.pdf", "type": "pdf", "content": "' + md + '"}\n```\nListo.'
+    for text, prose in ((valid, 'Aqui tienes.\n\nSaludos.'), (raw_newlines, 'Aqui.\n\nFin.'), (unescaped, 'Toma.\n\nListo.')):
+        arts = extract_artifacts(text)
+        assert len(arts) == 1 and not arts[0]['partial']
+        assert arts[0]['content'] == md                      # the inner ```chart / ```mermaid fences did not cut it
+        assert strip_artifact_blocks(text) == prose
+        assert first_artifact(text)['name'] == 'ww2.pdf'
+    cut = 'Toma.\n\n```artifact\n' + spec[:len(spec) // 2]
+    arts = extract_artifacts(cut)
+    assert arts and arts[0]['partial'] and arts[0]['name'] == 'ww2.pdf' and strip_artifact_blocks(cut) == 'Toma.'
+    code = '```artifact\n{"name": "x.py", "type": "python", "content": "def f():\\n    return \\"```\\"\\n"}\n```\nfin'
+    assert first_artifact(code)['content'] == 'def f():\n    return "```"\n' and strip_artifact_blocks(code) == 'fin'
+
+
+def test_print_viewport():
+    from deiza_mapper.pdf import print_viewport
+    assert print_viewport('<style>@page { size: A4; margin: 22mm 20mm 24mm 20mm; }</style>') == (643, 949)
+    assert print_viewport('<style>@page { size: letter landscape; margin: 0 }</style>') == (1056, 816)
+    assert print_viewport('<p>x</p>', size='A4') == (673, 986)      # default margins
+

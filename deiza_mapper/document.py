@@ -242,7 +242,7 @@ tr {{ page-break-inside: avoid; }}
 th {{ text-align: left; background: var(--accent); color: var(--on-accent); padding: 7px 10px; font-weight: 700; font-size: 9.5pt; letter-spacing: .02em; }}
 td {{ padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }}
 tbody tr:nth-child(even) td {{ background: var(--surface); }}
-img {{ max-width: 100%; height: auto; border-radius: 10px; display: block; margin: 1em auto; page-break-inside: avoid; }}
+img {{ max-width: 100%; max-height: 118mm; width: auto; height: auto; border-radius: 10px; display: block; margin: 1em auto; page-break-inside: avoid; object-fit: contain; }}
 figure {{ margin: 1.2em 0; page-break-inside: avoid; }}
 figure img {{ margin: 0 auto; }}
 figcaption {{ text-align: center; font-size: 9pt; color: var(--muted); margin-top: .5em; font-style: italic; }}
