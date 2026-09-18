@@ -137,7 +137,7 @@ def render_pdf(content: str, filename: str = 'documento.pdf', language: str = 'e
 def split_cover_html(html: str):
     """(cover_document, body_document) for a themed document with a full-page cover,
     or (None, html) when there is no cover."""
-    m = re.search(r'<section class="cover">.*?</section>\s*<div class="pagebreak"></div>', html, flags=re.S)
+    m = re.search(r'<section class="cover[^"]*">.*?</section>\s*<div class="pagebreak"></div>', html, flags=re.S)
     if not m:
         return None, html
     cover = m.group(0)

@@ -103,3 +103,51 @@ def test_deck_inputs():
     full = to_deck_html(frag)
     assert '<!doctype html>' in full and '.slide {' in full
     assert to_deck_html(json.dumps(plan)).count('<section class="slide') == 2
+
+
+def test_sanitize_model_deck():
+    from deiza_mapper.deck import sanitize_model_deck
+    dirty = (
+        '<!-- theme: ocean -->\n<style>.pad{display:flex;justify-content:space-between} h1{font-size:200px}</style>\n'
+        '<section class="slide hero" style="padding:0"><div class="wrapper"><div class="kicker">K</div>'
+        '<h1 style="position:absolute;top:0;color:#123456">Title of the deck</h1><p>Sub</p></div>'
+        '<img src="https://example.com/a.jpg" class="split-img"></section>\n'
+        '<section class="slide"><div class="pad"><h2>Cards</h2><div class="grid-3">'
+        + ''.join(f'<div class="card"><h4>C{i}</h4><p>t</p></div>' for i in range(6)) +
+        '</div></div></section>\n'
+        '<section class="slide"><blockquote>Words to live by</blockquote><p>Someone</p></section>'
+    )
+    frag, meta = sanitize_model_deck(dirty, allowed_images=['https://example.com/b.jpg'])
+    assert meta == {'theme': 'ocean'}
+    assert '<style' not in frag and 'position:' not in frag and '#123456' not in frag
+    assert 'wrapper' not in frag and 'hero' not in frag and '<div><div class="kicker">' not in frag   # wrappers flattened
+    assert '<div class="below">' in frag                          # plain cover: subtitle under the colour field
+    assert 'example.com/a.jpg' not in frag                        # not in the allowed list
+    assert '<section class="slide cover">' in frag and '<div class="field">' in frag
+    assert frag.count('<div class="card">') == 4                  # capped, grid class follows
+    assert 'class="grid-4"' in frag and 'grid-3' not in frag
+    assert '<section class="slide quote">' in frag and 'class="q"' in frag and 'class="author"' in frag
+    assert '<div class="num">03</div>' in frag and '<i class="tick"></i>' in frag
+
+
+def test_image_helpers():
+    from deiza_mapper.images import is_stock_url, wikimedia_thumb
+    orig = 'https://upload.wikimedia.org/wikipedia/commons/e/ee/Some_File_%28x%29.jpg?utm_source=commons'
+    assert wikimedia_thumb(orig) == ('https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/Some_File_%28x%29.jpg/'
+                                     '1280px-Some_File_%28x%29.jpg')
+    assert wikimedia_thumb('https://upload.wikimedia.org/wikipedia/commons/a/a1/Flag.svg').endswith('/1280px-Flag.svg.png')
+    thumb = 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Flag.svg/800px-Flag.svg.png'
+    assert wikimedia_thumb(thumb) == thumb and wikimedia_thumb('https://example.com/x.jpg') == 'https://example.com/x.jpg'
+    assert is_stock_url('https://img.freepik.com/fotos-premium/x.jpg') and is_stock_url('https://x.com/a.jpg', 'https://www.shutterstock.com/p')
+    assert not is_stock_url('https://upload.wikimedia.org/x.jpg', 'https://en.wikipedia.org/wiki/X')
+
+
+def test_document_cover_picture():
+    from deiza_mapper.document import build_document_html
+    md = ('<!-- theme: swiss cover: true kicker: "Annual report" author: "Strategy office" date: "September 2026" -->\n'
+          '# A title\n\nA subtitle line.\n\n![](https://example.com/cover.jpg)\n\n## Section\n\nBody.')
+    html = build_document_html(md, 'x.pdf', language='en')
+    assert '<section class="cover has-img">' in html and 'src="https://example.com/cover.jpg"' in html
+    assert 'cover-kicker">Annual report<' in html and 'Strategy office' in html and 'September 2026' in html
+    assert html.count('example.com/cover.jpg') == 1               # pulled out of the body, only on the cover
+

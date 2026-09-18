@@ -31,6 +31,33 @@ _UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTM
        'Chrome/126.0 Safari/537.36')
 
 
+_WIKI_ORIG_RE = re.compile(r'^(https?://upload\.wikimedia\.org/wikipedia/[a-z_-]+)/([0-9a-f])/([0-9a-f]{2})/([^/?#]+)(?:[?#].*)?$', re.I)
+
+
+def wikimedia_thumb(url: str, width: int = 1280) -> str:
+    """Wikimedia Commons originals are often 5-20 MB: rewrite them to the canonical thumbnail
+    URL (`/thumb/x/xy/File/1280px-File`) and drop tracking query strings. Other URLs pass through."""
+    m = _WIKI_ORIG_RE.match((url or '').strip())
+    if not m or '/thumb/' in url:
+        return url
+    base, d1, d2, name = m.groups()
+    suffix = '.png' if name.lower().endswith('.svg') else ''
+    return f'{base}/thumb/{d1}/{d2}/{name}/{width}px-{name}{suffix}'
+
+
+# Stock banks watermark their previews (Freepik "premium" tiles "Magnific" across the photo):
+# a document or deck should never embed one.
+STOCK_HOSTS = ('freepik', 'shutterstock', 'istockphoto', 'istock', 'gettyimages', 'alamy', 'dreamstime',
+               '123rf', 'depositphotos', 'stock.adobe', 'adobestock', 'bigstock', 'vectorstock', 'canstockphoto',
+               'fotolia', 'pond5', 'storyblocks', 'colourbox', 'agefotostock', 'stocksy', 'envato', 'pixta',
+               'photocase', 'imago-images', 'picfair', 'megapixl', 'yayimages', 'crushpixel')
+
+
+def is_stock_url(*urls) -> bool:
+    """True when any of the URLs (image or its page) belongs to a stock-photo bank."""
+    return any(h in (u or '').lower() for u in urls for h in STOCK_HOSTS)
+
+
 def register_local_prefix(url_prefix: str, directory: str):
     """Map a URL prefix (e.g. '/api/files/') to a directory of uploaded files."""
     if url_prefix and directory:
@@ -112,14 +139,22 @@ def fetch_image_bytes(url: str, timeout: float = 10.0) -> bytes:
             url = 'https:' + url
         if not url.startswith('http'):
             return b''
-        req = urllib.request.Request(url, headers={'User-Agent': _UA, 'Accept': 'image/*,*/*;q=0.8',
-                                                   'Accept-Language': 'en,es;q=0.8'})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            ctype = (resp.headers.get('Content-Type') or '').lower()
-            data = resp.read(_MAX_BYTES)
-        if 'image' not in ctype and not is_image_bytes(data):
-            return b''
-        return data
+        thumb = wikimedia_thumb(url)
+        # Commons refuses a thumbnail wider than the original: fall back to the original file
+        for candidate in ([thumb, url] if thumb != url else [url]):
+            try:
+                req = urllib.request.Request(candidate, headers={'User-Agent': _UA, 'Accept': 'image/*,*/*;q=0.8',
+                                                                 'Accept-Language': 'en,es;q=0.8'})
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    ctype = (resp.headers.get('Content-Type') or '').lower()
+                    data = resp.read(_MAX_BYTES)
+            except Exception as e:
+                logger.debug(f'fetch_image_bytes failed for {candidate[:80]}: {e}')
+                continue
+            if 'image' not in ctype and not is_image_bytes(data):
+                continue
+            return data
+        return b''
     except Exception as e:
         logger.debug(f'fetch_image_bytes failed for {str(url)[:80]}: {e}')
         return b''

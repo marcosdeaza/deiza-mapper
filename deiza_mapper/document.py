@@ -147,13 +147,23 @@ def build_document_html(content: str, filename: str = 'documento.pdf', language:
     body_html = md_to_html(rest_md)
     esc = lambda s: _html.escape(s or '', quote=False)
 
+    # a picture right under the title becomes the cover picture
+    cover_img = None
     if title and want_cover:
+        m_img = re.match(r'\s*!\[([^\]]*)\]\(([^)\s]+)[^)]*\)\s*\n', rest_md)
+        if m_img:
+            cover_img = m_img.group(2)
+            rest_md = rest_md[m_img.end():]
+            body_html = md_to_html(rest_md)
+    if title and want_cover:
+        kicker = meta.get('kicker') or ''
         head_block = f'''
-<section class="cover">
-  <div class="cover-rule"></div>
-  <h1 class="cover-title">{esc(title)}</h1>
+<section class="cover{' has-img' if cover_img else ''}">
+  <div class="cover-field">{f'<img src="{esc(cover_img)}" alt=""><div class="cover-scrim"></div>' if cover_img else ''}</div>
+  <div class="cover-text">{f'<p class="cover-kicker">{esc(kicker)}</p>' if kicker else ''}<h1 class="cover-title{' long' if len(title) > 48 else ''}">{esc(title)}</h1></div>
+  <div class="cover-tick"></div>
   {f'<p class="cover-sub">{esc(subtitle)}</p>' if subtitle else ''}
-  <div class="cover-foot"><span></span></div>
+  <div class="cover-foot"><span>{esc(meta.get('author') or '')}</span><span>{esc(meta.get('date') or '')}</span></div>
 </section>
 <div class="pagebreak"></div>'''
     elif title:
@@ -256,12 +266,18 @@ sup, sub {{ line-height: 0; }}
 .head-rule {{ width: 56px; height: 6px; background: var(--accent); margin-bottom: 14px; }}
 .doc-title {{ font-size: 30pt; margin: 0 0 .25em; letter-spacing: -0.02em; }}
 .doc-sub {{ font-size: 13pt; color: var(--muted); margin: 0; }}
-.cover {{ width: {'297mm' if opts['landscape'] else '210mm'}; height: {'210mm' if opts['landscape'] else '297mm'}; padding: 34mm 20mm 26mm; display: flex; flex-direction: column; justify-content: flex-end; background: var(--bg); position: relative; margin: 0; overflow: hidden; }}
-.cover::before {{ content: ""; position: absolute; inset: 0 0 auto 0; height: 46%; background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%); opacity: {".92" if dark else ".14"}; }}
-.cover-rule {{ width: 90px; height: 8px; background: var(--accent); margin-bottom: 28px; position: relative; }}
-.cover-title {{ font-size: 44pt; line-height: 1.02; margin: 0 0 .35em; letter-spacing: -0.025em; position: relative; }}
-.cover-sub {{ font-size: 15pt; color: var(--muted); margin: 0 0 3em; max-width: 80%; position: relative; }}
-.cover-foot {{ border-top: 1px solid var(--line); padding-top: 12px; position: relative; }}
+.cover {{ width: {'297mm' if opts['landscape'] else '210mm'}; height: {'210mm' if opts['landscape'] else '297mm'}; background: var(--bg); position: relative; margin: 0; padding: 0; overflow: hidden; }}
+.cover-field {{ position: absolute; left: 0; top: 0; right: 0; height: 56%; background: {"var(--surface)" if dark else "var(--accent)"}; overflow: hidden; }}
+.cover-field img {{ width: 100%; height: 100%; object-fit: cover; margin: 0; border-radius: 0; display: block; }}
+.cover-scrim {{ position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,10,.08) 0%, rgba(8,8,10,.62) 100%); }}
+.cover-text {{ position: absolute; left: 20mm; right: 20mm; top: 0; height: 56%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 16mm; }}
+.cover-kicker {{ font-family: {font_body}; text-transform: uppercase; letter-spacing: .16em; font-size: 10pt; font-weight: 700; color: {"var(--accent)" if dark else "var(--on-accent)"}; opacity: .9; margin: 0 0 10px; }}
+.cover-title {{ font-size: 40pt; line-height: 1.04; margin: 0; letter-spacing: -0.025em; color: {"var(--ink)" if dark else "var(--on-accent)"}; max-width: 92%; }}
+.cover-title.long {{ font-size: 32pt; }}
+.cover.has-img .cover-kicker, .cover.has-img .cover-title {{ color: #fff; }}
+.cover-tick {{ position: absolute; left: 20mm; top: calc(56% - 4mm); width: 40mm; height: 4mm; background: {"var(--accent)" if dark else "var(--accent2)"}; }}
+.cover-sub {{ position: absolute; left: 20mm; right: 20mm; top: calc(56% + 14mm); font-size: 15pt; line-height: 1.4; color: var(--muted); margin: 0; max-width: 78%; }}
+.cover-foot {{ position: absolute; left: 20mm; right: 20mm; bottom: 20mm; border-top: 1px solid var(--line); padding-top: 10px; display: flex; justify-content: space-between; font-size: 9.5pt; color: var(--muted); }}
 .doc-body > *:first-child {{ margin-top: 0; }}
 </style></head>
 <body>{head_block}

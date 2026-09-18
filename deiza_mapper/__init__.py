@@ -6,7 +6,7 @@ PowerPoint deck, a Word document or a runnable web/game bundle. Built for the
 Deiza AI workspace (deiza.org) and released so any LLM product can ship
 designed documents instead of grey ones.
 """
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 from .themes import THEMES, THEME_NAMES, parse_meta, resolve_theme  # noqa: F401
 from .markdown import md_to_html, split_cover  # noqa: F401

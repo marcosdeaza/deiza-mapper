@@ -10,7 +10,7 @@ Drop-in HTTP endpoints (Flask blueprint) so any chat backend can render delivera
     POST /render/docx   {"content": "...", "filename": "x.docx"}                                        -> .docx
     POST /render/pptx   {"content": "<deck html | json plan>", "pdf": false, "previews": true}          -> JSON {pptx_b64, pdf_b64, previews_b64[], slides}
     POST /render/zip    {"files": [{"name": "index.html", "content": "..."}], "filename": "app.zip"}   -> application/zip
-    POST /render/bundle/run  {"files": [...]}                                                           -> JSON {ok, errors, console, png_b64}
+    POST /render/bundle/run  {"files": [...], "clicks": ["#start"], "keys": ["Space"]}                   -> JSON {ok, errors, console, text, issues, png_b64}
     POST /render/artifacts   {"text": "...model answer..."}                                             -> JSON {artifacts: [...]}
     GET  /render/themes                                                                                 -> JSON theme tokens
 
@@ -126,12 +126,15 @@ def mapper_blueprint(name: str = 'deiza_mapper', max_content: int = 4_000_000):
         if not files:
             return jsonify({'error': 'files required'}), 400
         try:
-            r = run_bundle(files, screenshot=data.get('screenshot', True), keys=data.get('keys'))
+            r = run_bundle(files, screenshot=data.get('screenshot', True), keys=data.get('keys'), clicks=data.get('clicks'),
+                           width=int(data.get('width') or 1280), height=int(data.get('height') or 800),
+                           wait_ms=int(data.get('wait_ms') or 1500))
         except Exception as e:
             logger.exception('bundle run failed')
             return jsonify({'error': str(e)[:200]}), 500
         return jsonify({'ok': r['ok'], 'errors': r['errors'], 'console': r['console'][:50], 'title': r['title'],
-                        'issues': validate(files), 'png_b64': base64.b64encode(r['png']).decode() if r['png'] else None})
+                        'text': r.get('text', '')[:4000], 'issues': validate(files),
+                        'png_b64': base64.b64encode(r['png']).decode() if r['png'] else None})
 
     @bp.route('/artifacts', methods=['POST'])
     def artifacts():

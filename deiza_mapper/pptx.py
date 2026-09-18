@@ -312,7 +312,8 @@ class _Builder:
         x, y, w, h = e['x'], e['y'], e['w'], e['h']
         align = paras[0].get('align', 'left')
         lh = e.get('lineHeightPx') or ((e.get('fontPx') or 16) * 1.2)
-        single_line = len(paras) == 1 and h <= lh * 1.35
+        # the browser already decided the line breaks: one painted line stays one line in Office
+        single_line = (e.get('lines') == 1) or e.get('nowrap') or (len(paras) == 1 and h <= lh * 1.35)
         extra = max(6.0, w * 0.05)
         if align == 'right':
             x -= extra
@@ -591,7 +592,7 @@ def build_from_html(html: str, selector: str = 'section.slide', width_px: int = 
         css = PRINT_CSS % (selector, selector)
         html = html.replace('</head>', css + '</head>', 1) if '</head>' in html else css + html
     extract_src = read_static('extract.js')
-    result = {'pptx': b'', 'previews': [], 'pdf': None, 'slides': 0, 'titles': [], 'warnings': []}
+    result = {'pptx': b'', 'previews': [], 'pdf': None, 'slides': 0, 'titles': [], 'warnings': [], 'qa': []}
 
     with page_session(width_px, height_px, scale=2.0, timeout_ms=timeout_ms) as page:
         load_html(page, html, timeout_ms=timeout_ms)
@@ -600,6 +601,12 @@ def build_from_html(html: str, selector: str = 'section.slide', width_px: int = 
         slides = data.get('slides') or []
         if not slides:
             raise ValueError(f'no slides matched selector {selector!r}')
+        result['qa'] = data.get('qa') or []
+        for i, q in enumerate(result['qa']):
+            if q.get('overflow'):
+                result['warnings'].append(f'slide {i + 1}: content overflows the safe area (fs={q.get("fs")})')
+            if q.get('textOverImage'):
+                result['warnings'].append(f'slide {i + 1}: text sits over a picture')
         # rasters (transparent PNGs of elements PowerPoint cannot express)
         rasters = {}
         for rid in range(data.get('rasters', 0)):

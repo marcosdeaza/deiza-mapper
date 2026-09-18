@@ -282,7 +282,8 @@ def validate(files) -> list:
                 json.loads(f['content'] or '')
             except Exception as e:
                 issues.append({'level': 'error', 'msg': f'{f["name"]} is not valid JSON: {str(e)[:60]}'})
-    if '<canvas' in html and 'requestAnimationFrame' not in ''.join(f.get('content') or '' for f in files):
+    blob = ''.join(f.get('content') or '' for f in files)
+    if '<canvas' in html and 'requestAnimationFrame' not in blob and not re.search(r'new Chart\(|chart\.js|three(?:\.min)?\.js|THREE\.', blob):
         issues.append({'level': 'warn', 'msg': 'canvas without an animation loop'})
     return issues
 
@@ -322,20 +323,52 @@ def file_tree(files, max_lines: int = 60) -> str:
     return '\n'.join(lines)
 
 
+BUNDLE_ORIGIN = 'http://bundle.local'
+
+
 def run_bundle(files, width: int = 1280, height: int = 800, wait_ms: int = 1500, entry: str = None,
-               screenshot: bool = True, keys: list = None) -> dict:
-    """Run the project in headless Chromium. Returns {ok, errors, console, title, png}."""
+               screenshot: bool = True, keys: list = None, clicks: list = None, scale: float = 1.0,
+               full_page: bool = False) -> dict:
+    """Run the project in headless Chromium. Returns {ok, errors, console, title, png}.
+
+    The page is served from a real origin (`http://bundle.local/`, intercepted in-process, nothing
+    listens on the network) so `localStorage`, `sessionStorage`, relative `fetch()` of bundle files
+    and same-origin rules behave as they would on a static host. Console errors and uncaught
+    exceptions are collected; `ok` is True only when there are none. `keys` are pressed and `clicks`
+    (CSS selectors) clicked, in order, before the screenshot, so a filter change or a game input can
+    be exercised too. Text content after the run is returned in `text` for assertions."""
     from .browser import page_session
+    files = parse_files(files)
     html = runnable_html(files, entry)
-    out = {'ok': False, 'errors': [], 'console': [], 'title': '', 'png': b''}
+    out = {'ok': False, 'errors': [], 'console': [], 'title': '', 'png': b'', 'text': ''}
     if not html:
         out['errors'].append('no runnable HTML entry')
         return out
-    with page_session(width, height, timeout_ms=30000) as page:
+    by_path = {_norm(f['name']): f for f in files}
+    mime = {'.html': 'text/html', '.htm': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
+            '.mjs': 'text/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.txt': 'text/plain',
+            '.csv': 'text/csv', '.md': 'text/markdown', '.xml': 'application/xml'}
+
+    def _serve(route, request):
+        path = request.url[len(BUNDLE_ORIGIN):].split('?')[0].split('#')[0].lstrip('/')
+        if path in ('', 'index.html'):
+            route.fulfill(status=200, content_type='text/html; charset=utf-8', body=html)
+            return
+        f = by_path.get(path) or _lookup(by_path, path)
+        if f is None:
+            route.fulfill(status=404, content_type='text/plain', body='not found')
+            return
+        ext = os.path.splitext(path)[1].lower()
+        body = f['content']
+        route.fulfill(status=200, content_type=mime.get(ext, 'application/octet-stream') + ('; charset=utf-8' if ext in TEXT_EXT else ''),
+                      body=body.encode('utf-8') if isinstance(body, str) else body)
+
+    with page_session(width, height, scale=scale, timeout_ms=30000) as page:
         page.on('console', lambda m: out['console'].append(f'[{m.type}] {m.text}'[:300]) if m.type in ('error', 'warning', 'log') else None)
         page.on('pageerror', lambda e: out['errors'].append(str(e)[:300]))
+        page.route(BUNDLE_ORIGIN + '/**', _serve)
         try:
-            page.set_content(html, wait_until='load', timeout=30000)
+            page.goto(BUNDLE_ORIGIN + '/index.html', wait_until='load', timeout=30000)
         except Exception as e:
             out['errors'].append(f'load failed: {str(e)[:200]}')
         page.wait_for_timeout(wait_ms)
@@ -345,13 +378,20 @@ def run_bundle(files, width: int = 1280, height: int = 800, wait_ms: int = 1500,
                 page.wait_for_timeout(120)
             except Exception:
                 pass
+        for sel in (clicks or []):
+            try:
+                page.click(sel, timeout=3000)
+                page.wait_for_timeout(250)
+            except Exception as e:
+                out['errors'].append(f'click {sel} failed: {str(e)[:120]}')
         try:
             out['title'] = page.title()
+            out['text'] = page.evaluate('document.body ? document.body.innerText : ""')[:20000]
         except Exception:
             pass
         if screenshot:
             try:
-                out['png'] = page.screenshot(type='png')
+                out['png'] = page.screenshot(type='png', full_page=full_page)
             except Exception as e:
                 out['errors'].append(f'screenshot failed: {e}')
     out['errors'] += [c for c in out['console'] if c.startswith('[error]')]

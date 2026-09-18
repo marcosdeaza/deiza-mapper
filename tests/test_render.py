@@ -65,14 +65,38 @@ def test_pptx_from_plan_and_html():
     slide6 = z.read('ppt/slides/slide6.xml').decode()
     assert '<a:tbl>' in slide6                    # native table
     assert 'Inversi' in slide6
-    r2 = render_deck(_read('deck.html'), previews=False)
-    assert r2.slides == 7
+    r2 = render_deck(_read('deck.html'), previews=False, sanitize=True)
+    assert r2.slides == 9 and len(r2.qa) == 9 and not any(q.get('overflow') for q in r2.qa)
     z2 = zipfile.ZipFile(io.BytesIO(r2.pptx))
     s1 = z2.read('ppt/slides/slide1.xml').decode()
-    assert '<a:gradFill' in s1                    # CSS gradient became a native gradient fill
+    assert '<a:solidFill><a:srgbClr val="37C5B0"/>' in s1     # cover colour field in the midnight accent
     assert 'Inferencia' in s1
-    s5 = z2.read('ppt/slides/slide5.xml').decode()
-    assert '<a:outerShdw' in s5 and '<a:tbl>' in s5
+    s4 = z2.read('ppt/slides/slide4.xml').decode()
+    assert '<p:pic>' in s4 and '<a:gradFill' in s4             # full-bleed picture + its gradient scrim
+    s6 = z2.read('ppt/slides/slide6.xml').decode()
+    assert '<a:tbl>' in s6 and 'Latencia p95' in s6            # native table
+
+
+def test_example_bundles():
+    from deiza_mapper.bundle import build_zip, run_bundle, runnable_html, validate
+    calc = json.loads(_read('calculator_bundle.json'))['files']
+    assert [i for i in validate(calc) if i['level'] == 'error'] == []
+    html = runnable_html(calc)
+    assert '<style>' in html and 'src="app.js"' not in html and 'href="style.css"' not in html
+    r = run_bundle(calc, wait_ms=400)
+    assert r['ok'] and r['title'] == 'Calculator' and r['png'][:8] == b'\x89PNG\r\n\x1a\n'
+    dash = json.loads(_read('interactive_dashboard.json'))['files']
+    assert [i for i in validate(dash) if i['level'] == 'error'] == []
+    r0 = run_bundle(dash, wait_ms=1500, screenshot=False)
+    assert r0['ok'] and 'Total MRR' in r0['text']                # localStorage works: served from a real origin
+    r1 = run_bundle(dash, wait_ms=1500, clicks=['button[data-value="365"]', '#theme-toggle'], screenshot=False)
+    assert r1['ok'] and r1['text'] != r0['text']                 # the range filter re-computes the KPIs
+    casino = json.loads(_read('casino_bundle.json'))['files']
+    assert [i for i in validate(casino) if i['level'] == 'error'] == []
+    html2 = runnable_html(casino)
+    assert 'src="js/app.js"' not in html2 and html2.count('<script>') >= 5      # every local script inlined
+    z = zipfile.ZipFile(io.BytesIO(build_zip(casino)))
+    assert set(z.namelist()) >= {'index.html', 'css/style.css', 'js/app.js', 'js/roulette.js'}
 
 
 def test_bundle_runs_in_chromium():

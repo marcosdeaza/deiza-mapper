@@ -107,7 +107,8 @@ OFFICE_FONT_MAP = {
 }
 
 _META_RE = re.compile(r'^\s*<!--\s*(.*?)\s*-->', re.S)
-_META_KEYS = ('theme', 'accent', 'accent2', 'cover', 'font', 'size', 'orientation', 'numbers', 'lang', 'dir', 'margin')
+_META_KEYS = ('theme', 'accent', 'accent2', 'cover', 'font', 'size', 'orientation', 'numbers', 'lang', 'dir', 'margin',
+              'kicker', 'author', 'date')
 
 
 def parse_meta(content: str):
@@ -116,8 +117,9 @@ def parse_meta(content: str):
     meta = {}
     m = _META_RE.match(content or '')
     if m and any(k in m.group(1) for k in ('theme', 'accent', 'cover', 'size', 'numbers')):
-        for k, v in re.findall(r'(' + '|'.join(_META_KEYS) + r')\s*:\s*([#\w.-]+)', m.group(1), re.I):
-            meta[k.lower()] = v.strip()
+        # values are one word, or quoted when they carry spaces: author: "Dirección de estrategia"
+        for k, q, v in re.findall(r'(' + '|'.join(_META_KEYS) + r')\s*:\s*(?:"([^"]*)"|([#\w.-]+))', m.group(1), re.I):
+            meta[k.lower()] = (q or v).strip()
         content = content[m.end():].lstrip('\n')
     return meta, content
 

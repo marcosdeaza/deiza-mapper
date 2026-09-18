@@ -381,6 +381,23 @@
     if (/decimal|alpha|roman|numeric/.test(lst)) return { auto: lst, color: markerColor };
     return { char: '•', color: markerColor };
   }
+  function lineCount(el) {
+    // number of painted lines: distinct line-box tops across every text node
+    const range = document.createRange();
+    const tops = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walker.nextNode())) {
+      if (!n.nodeValue.trim()) continue;
+      const p = n.parentElement; if (p && getComputedStyle(p).display === 'none') continue;
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) {
+        if (r.width === 0 && r.height === 0) continue;
+        if (!tops.some(t => Math.abs(t - r.top) < r.height * 0.5)) tops.push(r.top);
+      }
+    }
+    return tops.length;
+  }
   function textElement(el, cs, origin, extra) {
     const paras = trimParas(collectRuns(el, [], null));
     if (!paras.length) return null;
@@ -399,7 +416,8 @@
     }
     const out = Object.assign({ t: 'text', x, y, w: round(w), h, rot: rotationOf(cs),
       paras: paras.map(p => Object.assign({ align: fmt.align, lineHeight: fmt.lineHeight, indent: fmt.indent }, p)),
-      fontPx: fmt.fontPx, lineHeightPx: fmt.lineHeightPx, valign: cs.verticalAlign, opacity: px(cs.opacity) }, extra || {});
+      fontPx: fmt.fontPx, lineHeightPx: fmt.lineHeightPx, valign: cs.verticalAlign, opacity: px(cs.opacity),
+      lines: lineCount(el), nowrap: cs.whiteSpace === 'nowrap' }, extra || {});
     return out;
   }
 
@@ -544,8 +562,48 @@
     for (const c of el.children) walkSlide(c, origin, list, bounds);
   }
 
-  function autofit(slide) {
-    // shrink text inside a slide that overflows its fixed box (up to -35%)
+  // ── autofit + QA ─────────────────────────────────────────────────────────
+  // Recipe decks (deck.css) size every font as calc(var(--fs) * Npx): shrinking or
+  // growing --fs on the section rescales the whole composition. A slide that
+  // overflows its safe area shrinks (down to 0.6); a slide whose content fills less
+  // than half of the safe area grows (up to 1.3) so it never looks empty.
+  function contentUnion(pad) {
+    let top = Infinity, bottom = -Infinity, left = Infinity, right = -Infinity, any = false;
+    const all = [pad, ...pad.querySelectorAll('*')];
+    for (const e of all) {
+      if (e === pad) continue;
+      const cs = getComputedStyle(e);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const isText = e.children.length === 0 && (e.textContent || '').trim();
+      const boxed = parseColor(cs.backgroundColor) || px(cs.borderTopWidth) > 0 || px(cs.borderLeftWidth) > 0 || e.tagName === 'IMG' || e.tagName === 'TABLE';
+      if (!isText && !boxed) continue;
+      any = true;
+      top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom);
+      left = Math.min(left, r.left); right = Math.max(right, r.right);
+    }
+    return any ? { top, bottom, left, right } : null;
+  }
+  function padOverflow(pad) {
+    const u = contentUnion(pad);
+    if (!u) return false;
+    const pr = pad.getBoundingClientRect();
+    if (u.top < pr.top - 1 || u.bottom > pr.bottom + 1 || u.right > pr.right + 1 || u.left < pr.left - 1) return true;
+    // a nowrap number wider than its column (e.g. "4.100 h" in a stats row)
+    for (const e of pad.querySelectorAll('*')) {
+      if (getComputedStyle(e).whiteSpace === 'nowrap' && e.scrollWidth > e.clientWidth + 2) return true;
+    }
+    return false;
+  }
+  function fillRatio(pad) {
+    const u = contentUnion(pad);
+    if (!u) return 0;
+    const pr = pad.getBoundingClientRect();
+    return pr.height > 0 ? (u.bottom - u.top) / pr.height : 1;
+  }
+  function autofitLegacy(slide) {
+    // decks without the recipe CSS: shrink text elements that overflow the slide box (up to -35%)
     let tries = 0;
     while (slide.scrollHeight > slide.clientHeight + 2 && tries < 7) {
       const factor = 0.94;
@@ -561,12 +619,75 @@
     }
     return tries;
   }
+  function dropBrokenPictures(slide) {
+    // a picture that never loaded would leave a broken-image box: remove it (and its scrim /
+    // accent bar) so the recipe re-flows as a text slide
+    let dropped = 0;
+    for (const img of Array.from(slide.querySelectorAll('img'))) {
+      const failed = img.complete && (img.naturalWidth === 0 || img.naturalHeight === 0);
+      if (!failed) continue;
+      const parent = img.parentElement;
+      if (parent === slide) {
+        for (const sib of Array.from(slide.children)) {
+          if (sib.classList && (sib.classList.contains('overlay') || sib.classList.contains('bar'))) sib.remove();
+        }
+      }
+      img.remove();
+      dropped++;
+    }
+    return dropped;
+  }
+  function autofit(slide) {
+    const dropped = dropBrokenPictures(slide);
+    const pads = Array.from(slide.querySelectorAll(':scope > .pad'));
+    const usesFs = getComputedStyle(slide).getPropertyValue('--fs').trim() !== '';
+    const qa = { fs: 1, overflow: false, fill: 1, shrunk: 0, grown: 0, droppedImages: dropped };
+    if (!pads.length || !usesFs) {
+      qa.shrunk = autofitLegacy(slide);
+      qa.overflow = slide.scrollHeight > slide.clientHeight + 2;
+      return qa;
+    }
+    const pad = pads[0];
+    const setFs = (v) => { slide.style.setProperty('--fs', String(v)); qa.fs = Math.round(v * 100) / 100; };
+    let fs = 1;
+    setFs(fs);
+    let guard = 0;
+    while (padOverflow(pad) && fs > 0.6 && guard++ < 12) { fs = Math.round((fs - 0.05) * 100) / 100; setFs(fs); qa.shrunk++; }
+    if (!padOverflow(pad) && fs === 1) {
+      const isPicture = slide.querySelector(':scope > .full-img');
+      let ratio = fillRatio(pad);
+      while (!isPicture && ratio < 0.7 && fs < 1.35 && guard++ < 12) {
+        const next = Math.round((fs + 0.05) * 100) / 100;
+        setFs(next);
+        if (padOverflow(pad) || fillRatio(pad) > 0.86) { setFs(fs); break; }
+        fs = next; qa.grown++;
+        ratio = fillRatio(pad);
+      }
+    }
+    qa.overflow = padOverflow(pad);
+    if (qa.overflow) qa.shrunk += autofitLegacy(slide);
+    qa.fill = Math.round(fillRatio(pad) * 100) / 100;
+    // text that still sits under a picture (should never happen with the recipes)
+    const pics = Array.from(slide.querySelectorAll(':scope > img'));
+    if (pics.length) {
+      const pr = pics[0].getBoundingClientRect();
+      for (const e of pad.querySelectorAll('*')) {
+        if (e.children.length || !(e.textContent || '').trim()) continue;
+        const r = e.getBoundingClientRect();
+        const ix = Math.min(r.right, pr.right) - Math.max(r.left, pr.left);
+        const iy = Math.min(r.bottom, pr.bottom) - Math.max(r.top, pr.top);
+        if (ix > 8 && iy > 8 && !slide.querySelector(':scope > .overlay')) { qa.textOverImage = true; break; }
+      }
+    }
+    return qa;
+  }
 
   function extractSlides() {
     const slides = [];
+    const qaList = [];
     const nodes = Array.from(document.querySelectorAll(slideSelector));
     for (const s of nodes) {
-      if (opts.autofit !== false) autofit(s);
+      qaList.push(opts.autofit !== false ? autofit(s) : { fs: 1 });
       const b = s.getBoundingClientRect();
       const origin = { x: b.left, y: b.top };
       const cs = getComputedStyle(s);
@@ -582,7 +703,7 @@
       slides.push({ w: round(b.width), h: round(b.height), bg: bg ? bg.hex : '#FFFFFF', elements: list,
         notes: s.getAttribute('data-notes') || (notesEl ? notesEl.textContent.trim() : ''), title: (s.querySelector('h1,h2,h3') || {}).textContent || '' });
     }
-    return { mode: 'slides', slides, rasters: rasterId };
+    return { mode: 'slides', slides, rasters: rasterId, qa: qaList };
   }
 
   // ── flow mode ────────────────────────────────────────────────────────────
